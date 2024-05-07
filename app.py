@@ -104,6 +104,7 @@ def main():
                 combined_audio = np.concatenate(audio_segments)
                 sampling_rate = model.generation_config.sample_rate
                 st.audio(combined_audio, sample_rate=sampling_rate)
+                pass
 
 
 if __name__ == '__main__':
