@@ -7,6 +7,7 @@ from langchain.prompts import (
 from langchain.schema import SystemMessage
 from langchain_community.llms import Ollama
 from langchain.memory import ConversationBufferMemory
+from uuid import uuid4
 
 
 class Chat:
@@ -30,7 +31,7 @@ class Chat:
 
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-        self.model = Ollama(model="llama3")
+        self.model = Ollama(model="llama3", base_url="http://ollama:11434")
 
         self.chain = LLMChain(
             llm=self.model,
@@ -38,6 +39,8 @@ class Chat:
             verbose=True,
             memory=self.memory
         )
+
+        self.session_id = str(uuid4())
 
     def __call__(self, text, *args, **kwargs):
         return self.chain.predict(input=text)

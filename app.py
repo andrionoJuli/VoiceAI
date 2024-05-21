@@ -1,13 +1,11 @@
 import torch
 import nltk
-import streamlit as st
-import numpy as np
 
 from streamlit_mic_recorder import speech_to_text
 from transformers import AutoProcessor, BarkModel
-from chat_service import Chat
+from optimum.bettertransformer import BetterTransformer
+from backend.chat_service import Chat
 from streamlit_float import *
-
 
 # Configure GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -18,6 +16,7 @@ processor = AutoProcessor.from_pretrained("suno/bark-small")
 model = BarkModel.from_pretrained("suno/bark-small", torch_dtype=torch.float16).to(device)
 
 # Improve processing speed
+model = BetterTransformer.transform(model, keep_original_model=False)
 model.enable_cpu_offload()
 
 # Select voice
@@ -30,6 +29,7 @@ def count_words(text):
     words = text.split()
     return len(words)
 
+
 # initializing session state & prompts
 def set_main():
     if "chat" not in state:
@@ -39,12 +39,14 @@ def set_main():
                                  "you as a friend. You are to respond casually in a warm, caring, and empathetic "
                                  "manner. Seamlessly incorporate vocal inflections like 'I see', 'gotcha!', 'right!', "
                                  "'oh dear', 'I understand', 'that makes sense', 'I hear you', and 'you know?' to "
-                                 "convey empathy and understanding. Avoid responses like 'Ahaha', 'Hahaha', 'smile', "
-                                 "'nod', their synonyms or others words that cannot be expressed verbally. You can "
-                                 "only incorporate the following non-speech sounds : '[laughter]', '[laughs]', "
-                                 "'[chuckle]', '[crying]', '[sighs]', '[music]', '[gasps]', '[clears throat]', "
-                                 "'...' for hesitations, and CAPITALIZATION for emphasis of a word. Be concise and "
-                                 "direct in your responses, you are to answer as short as possible. Avoid repeating "
+                                 "convey empathy and understanding when appropriate. Avoid responses like 'Ahaha', "
+                                 "'Hahaha', 'smile', 'nod', their synonyms or others words that cannot be expressed "
+                                 "verbally. You can use non-speech sounds but you can only incorporate the following "
+                                 "non-speech sounds : '[laughter]', '[laughs]', '[chuckle]', '[crying]', '[sighs]', "
+                                 "'[music]', '[gasps]', '[clears throat]', '...' for hesitations, and CAPITALIZATION "
+                                 "for emphasis of a word. Be concise and direct in your responses, you are to answer "
+                                 "as short as possible; if possible answer in one sentence else you are to answer in "
+                                 "three sentences with each sentence being not more than 20 words. Avoid repeating "
                                  "yourself or providing unnecessary information and make sure to only ask one "
                                  "question at a time if any.")
     if "memory" not in state:
@@ -83,10 +85,10 @@ def main():
             with st.spinner("Generate response..."):
                 st.write(output)
             word_count = count_words(output)
-            if word_count <=20:
+            if word_count <= 20:
                 inputs = processor(output, voice_preset=voice_preset, return_tensors="pt").to(device)
                 with torch.no_grad():
-                    audio_array = model.generate(**inputs).cpu().numpy().squeeze()
+                    audio_array = model.generate(**inputs, do_sample=True, fine_temperature=0.3, coarse_temperature=0.7).cpu().numpy().squeeze()
                 sample_rate = model.generation_config.sample_rate
                 # Display the audio
                 st.audio(audio_array, sample_rate=sample_rate)
@@ -94,17 +96,20 @@ def main():
                 texts = output.replace("\n", " ").strip()
                 text_segments = nltk.sent_tokenize(texts)
                 # Process text to audio
-                audio_segments = []
-                for segment in text_segments:
-                    inputs = processor(segment, return_tensors="pt", voice_preset=voice_preset).to(device)
-                    audio_outputs = model.generate(**inputs, do_sample=True, fine_temperature=0.3, coarse_temperature=0.7)
-                    audio_segments.append(audio_outputs.squeeze().cpu().numpy())
+                inputs = processor(text_segments, return_tensors="pt", voice_preset=voice_preset).to(device)
+                audio_outputs = model.generate(**inputs, do_sample=True, fine_temperature=0.3, coarse_temperature=0.7).cpu().numpy().squeeze()
+                # for segment in text_segments:
+                #     inputs = processor(segment, return_tensors="pt", voice_preset=voice_preset).to(device)
+                #     audio_outputs = model.generate(**inputs, do_sample=True, fine_temperature=0.3,
+                #                                    coarse_temperature=0.7)
+                #     audio_segments.append(audio_outputs.squeeze().cpu().numpy())
 
                 # Combine all audio
-                combined_audio = np.concatenate(audio_segments)
+                #combined_audio = np.concatenate(audio_segments)
                 sampling_rate = model.generation_config.sample_rate
-                st.audio(combined_audio, sample_rate=sampling_rate)
-                pass
+                for audio in audio_outputs:
+                    st.audio(audio, sample_rate=sampling_rate)
+            pass
 
 
 if __name__ == '__main__':

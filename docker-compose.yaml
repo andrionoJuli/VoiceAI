@@ -1,0 +1,49 @@
+version: '3.10'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ollama
+    networks:
+      - ollama-docker
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f gunicorn"]
+      interval: 30s
+      retries: 10
+      start_period: 120s
+      timeout: 10s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - .:/code
+      - ./ollama/ollama:/root/.ollama
+      - ./start-ollama.sh:/start-ollama.sh
+    container_name: ollama
+    restart: always
+    networks:
+      - ollama-docker
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "ollama"]
+      interval: 30s
+      retries: 10
+      start_period: 120s
+      timeout: 10s
+    entrypoint: /bin/sh
+    command: /start-ollama.sh
+
+networks:
+  ollama-docker:
+    external: false

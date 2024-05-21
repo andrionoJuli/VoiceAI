@@ -1,0 +1,17 @@
+#streamlit==1.33.0
+transformers==4.40.1
+langchain==0.1.17
+#streamlit_mic_recorder==0.0.8
+#streamlit-float==0.3.4
+torch
+torchaudio
+torchvision
+nltk==3.8.1
+numpy==1.22.0
+accelerate
+fastapi
+uvicorn
+ollama
+scipy
+optimum
+pydub
