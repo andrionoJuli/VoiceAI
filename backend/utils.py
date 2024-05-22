@@ -1,4 +1,7 @@
+import tempfile
+
 from pydantic import BaseModel
+from pydub import AudioSegment
 
 
 def count_words(text):
@@ -12,6 +15,13 @@ def audio_generator(audio_file_path):
         while chunk:
             yield chunk
             chunk = audio_file.read(1024)
+
+
+def convert_wav_to_mp3(wav_filename):
+    mp3_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    audio_segment = AudioSegment.from_wav(wav_filename)
+    audio_segment.export(mp3_temp_file.name, format="mp3")
+    return mp3_temp_file
 
 
 class FileInfo(BaseModel):

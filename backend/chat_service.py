@@ -30,9 +30,10 @@ class Chat:
         )
 
         self.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
+        # for docker/production environment
         self.model = Ollama(model="llama3", base_url="http://ollama:11434")
-
+        # for running locally
+        #self.model = Ollama(model="llama3")
         self.chain = LLMChain(
             llm=self.model,
             prompt=self.template,

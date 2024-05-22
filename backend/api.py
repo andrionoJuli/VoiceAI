@@ -3,7 +3,8 @@ import torch
 import nltk
 import scipy
 import numpy as np
-nltk.download('punkt')
+import tempfile
+import soundfile as sf
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -11,11 +12,11 @@ from chat_service import Chat
 from transformers import AutoProcessor, BarkModel
 from optimum.bettertransformer import BetterTransformer
 from datetime import datetime
-
 from pathlib import Path
-from utils import count_words, FileInfo, audio_generator
+from utils import count_words, FileInfo, audio_generator, convert_wav_to_mp3
 from pydub import AudioSegment
 
+#nltk.download('punkt')
 
 app = FastAPI()
 
@@ -86,6 +87,44 @@ async def chat_with_assistant_audio(input_text: str):
     audio_segment.export(audio_path, format="mp3")
     file_info = FileInfo(session_id=chat_instance.session_id, timestamp=timestamp)
     return file_info
+
+
+@app.post("/generate_audio_stream/")
+async def chat_with_assistant_audio(input_text: str):
+    output = chat_instance(input_text)
+    word_count = count_words(output)
+    if word_count <= 20:
+        inputs = processor(output, voice_preset=voice_preset, return_tensors="pt").to(device)
+        with torch.no_grad():
+            audio_array = model.generate(**inputs, do_sample=True, fine_temperature=0.3,
+                                         coarse_temperature=0.7).cpu().numpy().squeeze()
+        audio_32 = audio_array.astype(np.float32)
+    else:
+        texts = output.replace("\n", " ").strip()
+        text_segments = nltk.sent_tokenize(texts)
+        # Process text to audio
+        # Approach 2 combined audio: risk longer processing time but easier streaming
+        audio_segments = []
+        for segment in text_segments:
+            inputs = processor(segment, return_tensors="pt", voice_preset=voice_preset).to(device)
+            audio_outputs = model.generate(**inputs, do_sample=True, fine_temperature=0.3,
+                                           coarse_temperature=0.7)
+            audio_segments.append(audio_outputs.cpu().numpy().squeeze())
+        # Combine all audio
+        combined_audio = np.concatenate(audio_segments)
+        audio_32 = combined_audio.astype(np.float32)
+    sample_rate = model.generation_config.sample_rate
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+    sf.write(temp_file.name, audio_32, sample_rate)
+    mp3_temp_file = convert_wav_to_mp3(temp_file.name)
+    file_like = open(mp3_temp_file.name, 'rb')
+
+    def iterfile():
+        with file_like as f:
+            yield from f
+
+    response = StreamingResponse(iterfile(), media_type="audio/mp3")
+    return response
 
 
 @app.get("/stream_audio/{session_id}/{timestamp}")

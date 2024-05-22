@@ -24,7 +24,9 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-EXPOSE 8080
+RUN python3.10 -m nltk.downloader punkt
+
+EXPOSE 7070
 
 # Run app.py when the container launches
-CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "7070"]

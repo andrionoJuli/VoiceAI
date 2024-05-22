@@ -5,6 +5,7 @@ MODEL_DIR='root/.ollama/models/manifests/registry.ollama.ai/library/llama3'
 ollama serve &
 
 echo 'Waiting for Ollama service to start...'
+# Allow service to start up properly
 sleep 30
 
 if [ ! "$(ls -A $MODEL_DIR)" ]; then
